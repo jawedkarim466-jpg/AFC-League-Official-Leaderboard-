@@ -1,55 +1,31 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Football Leaderboard</title>
+<title>Leaderboard</title>
 
 <style>
-body{
-    font-family: Arial;
-    background:#141E30;
-    color:white;
-    text-align:center;
-}
-
-.container{width:95%;margin:auto;}
-
-table{
-    width:100%;
-    background:white;
-    color:black;
-    border-collapse:collapse;
-}
-
-th,td{
-    padding:10px;
-    border:1px solid #ddd;
-    text-align:center;
-}
-
-button{padding:5px;margin:2px;cursor:pointer;}
-
-#adminPanel{display:none;margin:10px;}
+body{font-family:Arial;background:#111;color:white;text-align:center;}
+table{margin:auto;width:90%;background:white;color:black;}
+td,th{padding:8px;border:1px solid #ddd;}
+button{margin:2px;}
+#admin{display:none;margin:10px;}
 </style>
 </head>
 
 <body>
 
-<h1>⚽ Football Leaderboard</h1>
+<h1>Football Leaderboard</h1>
 
-<p id="status">Not logged in</p>
+<input id="pass" type="password" placeholder="Admin password">
+<button onclick="login()">Login</button>
 
-<div>
-    <input id="email" placeholder="Email">
-    <input id="password" type="password" placeholder="Password">
-    <button onclick="login()">Login</button>
-</div>
+<p id="status">Viewer mode</p>
 
-<br>
-
-<div id="adminPanel">
-    <input id="playerName" placeholder="Player name">
-    <button onclick="addPlayer()">Add Player</button>
+<div id="admin">
+<input id="name" placeholder="Player name">
+<button onclick="add()">Add Player</button>
+<button onclick="undo()">Undo</button>
 </div>
 
 <br>
@@ -66,123 +42,91 @@ button{padding:5px;margin:2px;cursor:pointer;}
 <th>Total</th>
 </tr>
 </thead>
-
-<tbody id="tbody"></tbody>
+<tbody id="t"></tbody>
 </table>
 
-<script type="module">
+<h3>History</h3>
+<div id="h"></div>
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-getFirestore,
-collection,
-addDoc,
-doc,
-updateDoc,
-onSnapshot,
-getDoc,
-arrayUnion
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<script>
+const ADMIN_PASS="1234";
+let admin=false;
 
-import {
-getAuth,
-signInWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+let players=JSON.parse(localStorage.getItem("p")||"[]");
+let history=JSON.parse(localStorage.getItem("h")||"[]");
+let backup=null;
 
-/* 🔥 PUT YOUR FIREBASE CONFIG HERE */
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
+function save(){
+localStorage.setItem("p",JSON.stringify(players));
+localStorage.setItem("h",JSON.stringify(history));
+}
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+function login(){
+if(document.getElementById("pass").value===ADMIN_PASS){
+admin=true;
+document.getElementById("status").innerText="ADMIN MODE";
+document.getElementById("admin").style.display="block";
+}
+render();
+}
 
-const playersRef = collection(db, "players");
+function add(){
+if(!admin)return;
 
-let isAdmin = false;
+let n=document.getElementById("name").value;
+if(!n)return;
 
-/* LOGIN */
-window.login = async function(){
-    const email = document.getElementById("email").value;
-    const pass = document.getElementById("password").value;
+players.push({name:n,g:0,a:0,w:0,d:0,l:0});
+history.push("Added "+n);
+save();render();
+}
 
-    try{
-        await signInWithEmailAndPassword(auth, email, pass);
-        isAdmin = true;
-        document.getElementById("status").innerText = "ADMIN MODE";
-        document.getElementById("adminPanel").style.display = "block";
-    } catch(e){
-        alert("Wrong login");
-    }
-};
+function change(i,k,v){
+if(!admin)return;
 
-/* LIVE TABLE */
-onSnapshot(playersRef, (snapshot)=>{
-    const tbody = document.getElementById("tbody");
-    tbody.innerHTML = "";
+backup=JSON.parse(JSON.stringify(players));
 
-    snapshot.forEach(docSnap=>{
-        let p = docSnap.data();
+players[i][k]+=v;
+if(players[i][k]<0)players[i][k]=0;
 
-        const total =
-            (p.goals||0)*1.5 +
-            (p.assists||0) +
-            (p.wins||0)*3 -
-            (p.losses||0);
+history.push(players[i].name+" "+k+" "+v);
+save();render();
+}
 
-        tbody.innerHTML += `
-        <tr>
-            <td>${p.name}</td>
+function undo(){
+if(!admin||!backup)return;
 
-            <td>${p.goals||0} <button onclick="change('${docSnap.id}','goals',1)">+</button></td>
-            <td>${p.assists||0} <button onclick="change('${docSnap.id}','assists',1)">+</button></td>
-            <td>${p.wins||0} <button onclick="change('${docSnap.id}','wins',1)">+</button></td>
-            <td>${p.draws||0} <button onclick="change('${docSnap.id}','draws',1)">+</button></td>
-            <td>${p.losses||0} <button onclick="change('${docSnap.id}','losses',1)">+</button></td>
+players=backup;
+history.push("UNDO");
+save();render();
+}
 
-            <td>${total.toFixed(1)}</td>
-        </tr>`;
-    });
+function total(p){
+return p.g*1.5+p.a+p.w*3-p.l;
+}
+
+function render(){
+let t=document.getElementById("t");
+t.innerHTML="";
+
+players.forEach((p,i)=>{
+t.innerHTML+=`
+<tr>
+<td>${p.name}</td>
+<td>${p.g}<button onclick="change(${i},'g',1)">+</button></td>
+<td>${p.a}<button onclick="change(${i},'a',1)">+</button></td>
+<td>${p.w}<button onclick="change(${i},'w',1)">+</button></td>
+<td>${p.d}</td>
+<td>${p.l}<button onclick="change(${i},'l',1)">+</button></td>
+<td>${total(p).toFixed(1)}</td>
+</tr>`;
 });
 
-/* ADD PLAYER */
-window.addPlayer = async function(){
-    if(!isAdmin) return alert("Admin only");
+document.getElementById("h").innerHTML=
+history.slice(-10).reverse().map(x=>"<div>"+x+"</div>").join("");
+}
 
-    const name = document.getElementById("playerName").value;
-    if(!name) return;
-
-    await addDoc(playersRef,{
-        name,
-        goals:0,
-        assists:0,
-        wins:0,
-        draws:0,
-        losses:0
-    });
-
-    document.getElementById("playerName").value="";
-};
-
-/* CHANGE STATS */
-window.change = async function(id, field, value){
-    if(!isAdmin) return alert("Admin only");
-
-    const ref = doc(db,"players",id);
-    const snap = await getDoc(ref);
-    let data = snap.data();
-
-    data[field] = (data[field]||0) + value;
-
-    await updateDoc(ref,data);
-};
-
+render();
 </script>
 
 </body>
