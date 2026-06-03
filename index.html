@@ -1,84 +1,61 @@
 <!DOCTYPE html>
-<html lang="el">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Football Leaderboard</title>
+<title>Football League Online</title>
 
 <style>
 body{
-    font-family: Arial, sans-serif;
-    background: linear-gradient(to right, #141E30, #243B55);
-    color:white;
-    text-align:center;
-}
-
-.container{
-    width:90%;
-    margin:auto;
-    margin-top:30px;
+    font-family: Arial;
+    background: #141E30;
+    color: white;
+    text-align: center;
 }
 
 table{
-    width:100%;
-    border-collapse:collapse;
-    background:white;
-    color:black;
+    width: 95%;
+    margin: auto;
+    background: white;
+    color: black;
+    border-collapse: collapse;
 }
 
 th, td{
-    padding:10px;
-    text-align:center;
-    border-bottom:1px solid #ddd;
-}
-
-th{
-    background:#111;
-    color:white;
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: center;
 }
 
 button{
-    padding:5px 10px;
-    margin:2px;
-    border:none;
-    border-radius:5px;
-    cursor:pointer;
+    margin: 2px;
+    padding: 5px;
 }
 
-.addBtn{background:green;color:white;}
-.minusBtn{background:red;color:white;}
-
-input{
-    padding:8px;
-    border-radius:5px;
-    border:none;
-}
-
-#loginBox{
-    margin-top:20px;
+#adminPanel{
+    margin: 10px;
 }
 </style>
 </head>
 
 <body>
 
-<h1>⚽ Online Football Leaderboard</h1>
+<h1>⚽ Football Online Leaderboard</h1>
 
-<p id="status">Not logged in (view only mode)</p>
+<p id="status">Not logged in</p>
 
-<div class="container">
+<input id="email" placeholder="admin email">
+<input id="password" type="password" placeholder="password">
+<button onclick="login()">Login</button>
 
-<div id="loginBox">
-    <input id="email" placeholder="Admin email">
-    <input id="password" type="password" placeholder="Password">
-    <button onclick="login()">Login as Admin</button>
+<br><br>
+
+<div id="adminPanel" style="display:none;">
+    <input id="name" placeholder="Player name">
+    <button onclick="addPlayer()">Add Player</button>
+    <button onclick="undo()">↩ Undo Last Change</button>
 </div>
 
 <br>
-
-<input id="playerName" placeholder="Player name">
-<button onclick="addPlayer()">Add Player</button>
-
-<br><br>
 
 <table>
 <thead>
@@ -93,155 +70,38 @@ input{
 </tr>
 </thead>
 
-<tbody id="tbody"></tbody>
+<tbody id="body"></tbody>
 </table>
 
-</div>
+<h2>History</h2>
+<div id="history"></div>
 
 <script type="module">
+    let isAdmin = false;
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-getFirestore,
-collection,
-addDoc,
-doc,
-updateDoc,
-onSnapshot,
-getDoc
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-import {
-getAuth,
-signInWithEmailAndPassword,
-onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
-/* 🔥 STEP 1: PUT YOUR FIREBASE CONFIG HERE */
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-
-const playersRef = collection(db, "players");
-
-/* ================= VIEW DATA (EVERYONE CAN SEE) ================= */
-
-onSnapshot(playersRef, (snapshot) => {
-
-    const tbody = document.getElementById("tbody");
-    tbody.innerHTML = "";
-
-    let players = [];
-
-    snapshot.forEach(docSnap => {
-        let p = docSnap.data();
-        p.id = docSnap.id;
-        players.push(p);
-    });
-
-    players.sort((a,b)=> b.total - a.total);
-
-    players.forEach(p => {
-        tbody.innerHTML += `
-        <tr>
-            <td>${p.name}</td>
-
-            <td>${p.goals} ${adminButtons(p.id,'goals')}</td>
-            <td>${p.assists} ${adminButtons(p.id,'assists')}</td>
-            <td>${p.wins} ${adminButtons(p.id,'wins')}</td>
-            <td>${p.draws} ${adminButtons(p.id,'draws')}</td>
-            <td>${p.losses} ${adminButtons(p.id,'losses')}</td>
-
-            <td>${p.total}</td>
-        </tr>`;
-    });
-});
-
-/* ================= ADMIN CHECK ================= */
-
-let isAdmin = false;
-
-window.login = async function(){
-
+/* 🔐 ADMIN LOGIN */
+function login(){
     const email = document.getElementById("email").value;
     const pass = document.getElementById("password").value;
 
-    try{
-        await signInWithEmailAndPassword(auth, email, pass);
+    if(email === "peixeiknight@gmail.com" && pass === "Theod3456"){
         isAdmin = true;
-        document.getElementById("status").innerText = "ADMIN MODE ACTIVE";
-        document.getElementById("loginBox").style.display = "none";
-    }catch(err){
-        alert("Login failed");
+        document.getElementById("status").innerText = "ADMIN MODE ON";
+        alert("Logged in successfully");
+    } else {
+        alert("Wrong login");
     }
-};
-
-/* ================= ADD PLAYER ================= */
-
-window.addPlayer = async function(){
-
-    if(!isAdmin){
-        alert("Only admin can add players");
-        return;
-    }
-
-    let name = document.getElementById("playerName").value;
-    if(!name) return;
-
-    await addDoc(playersRef, {
-        name,
-        goals:0,
-        assists:0,
-        wins:0,
-        draws:0,
-        losses:0,
-        total:0
-    });
-
-    document.getElementById("playerName").value = "";
-};
-
-/* ================= UPDATE STATS ================= */
-
-window.change = async function(id, field, value){
-
-    if(!isAdmin){
-        alert("Only admin can edit");
-        return;
-    }
-
-    const ref = doc(db, "players", id);
-    const snap = await getDoc(ref);
-    const data = snap.data();
-
-    data[field] = Math.max(0, data[field] + value);
-
-    data.total =
-        data.goals*1.5 +
-        data.assists +
-        data.wins*3 -
-        data.losses;
-
-    await updateDoc(ref, data);
-};
-
-/* ================= UI HELPERS ================= */
-
-function adminButtons(id, field){
-    return `
-        <button class="addBtn" onclick="change('${id}','${field}',1)">+</button>
-        <button class="minusBtn" onclick="change('${id}','${field}',-1)">-</button>
-    `;
 }
+
+/* BLOCK EDITING FOR NON-ADMINS */
+function requireAdmin(){
+    if(!isAdmin){
+        alert("Admin only");
+        return false;
+    }
+    return true;
+}
+
 
 </script>
 
