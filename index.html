@@ -1,58 +1,55 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Football League Online</title>
+<title>Football Leaderboard</title>
 
 <style>
 body{
     font-family: Arial;
-    background: #141E30;
-    color: white;
-    text-align: center;
+    background:#141E30;
+    color:white;
+    text-align:center;
 }
+
+.container{width:95%;margin:auto;}
 
 table{
-    width: 95%;
-    margin: auto;
-    background: white;
-    color: black;
-    border-collapse: collapse;
+    width:100%;
+    background:white;
+    color:black;
+    border-collapse:collapse;
 }
 
-th, td{
-    padding: 10px;
-    border: 1px solid #ddd;
-    text-align: center;
+th,td{
+    padding:10px;
+    border:1px solid #ddd;
+    text-align:center;
 }
 
-button{
-    margin: 2px;
-    padding: 5px;
-}
+button{padding:5px;margin:2px;cursor:pointer;}
 
-#adminPanel{
-    margin: 10px;
-}
+#adminPanel{display:none;margin:10px;}
 </style>
 </head>
 
 <body>
 
-<h1>⚽ Football Online Leaderboard</h1>
+<h1>⚽ Football Leaderboard</h1>
 
 <p id="status">Not logged in</p>
 
-<input id="email" placeholder="admin email">
-<input id="password" type="password" placeholder="password">
-<button onclick="login()">Login</button>
+<div>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+</div>
 
-<br><br>
+<br>
 
-<div id="adminPanel" style="display:none;">
-    <input id="name" placeholder="Player name">
+<div id="adminPanel">
+    <input id="playerName" placeholder="Player name">
     <button onclick="addPlayer()">Add Player</button>
-    <button onclick="undo()">↩ Undo Last Change</button>
 </div>
 
 <br>
@@ -60,7 +57,7 @@ button{
 <table>
 <thead>
 <tr>
-<th>Player</th>
+<th>Name</th>
 <th>Goals</th>
 <th>Assists</th>
 <th>Wins</th>
@@ -70,38 +67,121 @@ button{
 </tr>
 </thead>
 
-<tbody id="body"></tbody>
+<tbody id="tbody"></tbody>
 </table>
 
-<h2>History</h2>
-<div id="history"></div>
-
 <script type="module">
-    let isAdmin = false;
 
-/* 🔐 ADMIN LOGIN */
-function login(){
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+getFirestore,
+collection,
+addDoc,
+doc,
+updateDoc,
+onSnapshot,
+getDoc,
+arrayUnion
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+import {
+getAuth,
+signInWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+/* 🔥 PUT YOUR FIREBASE CONFIG HERE */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const playersRef = collection(db, "players");
+
+let isAdmin = false;
+
+/* LOGIN */
+window.login = async function(){
     const email = document.getElementById("email").value;
     const pass = document.getElementById("password").value;
 
-    if(email === "peixeiknight@gmail.com" && pass === "Theod3456"){
+    try{
+        await signInWithEmailAndPassword(auth, email, pass);
         isAdmin = true;
-        document.getElementById("status").innerText = "ADMIN MODE ON";
-        alert("Logged in successfully");
-    } else {
+        document.getElementById("status").innerText = "ADMIN MODE";
+        document.getElementById("adminPanel").style.display = "block";
+    } catch(e){
         alert("Wrong login");
     }
-}
+};
 
-/* BLOCK EDITING FOR NON-ADMINS */
-function requireAdmin(){
-    if(!isAdmin){
-        alert("Admin only");
-        return false;
-    }
-    return true;
-}
+/* LIVE TABLE */
+onSnapshot(playersRef, (snapshot)=>{
+    const tbody = document.getElementById("tbody");
+    tbody.innerHTML = "";
 
+    snapshot.forEach(docSnap=>{
+        let p = docSnap.data();
+
+        const total =
+            (p.goals||0)*1.5 +
+            (p.assists||0) +
+            (p.wins||0)*3 -
+            (p.losses||0);
+
+        tbody.innerHTML += `
+        <tr>
+            <td>${p.name}</td>
+
+            <td>${p.goals||0} <button onclick="change('${docSnap.id}','goals',1)">+</button></td>
+            <td>${p.assists||0} <button onclick="change('${docSnap.id}','assists',1)">+</button></td>
+            <td>${p.wins||0} <button onclick="change('${docSnap.id}','wins',1)">+</button></td>
+            <td>${p.draws||0} <button onclick="change('${docSnap.id}','draws',1)">+</button></td>
+            <td>${p.losses||0} <button onclick="change('${docSnap.id}','losses',1)">+</button></td>
+
+            <td>${total.toFixed(1)}</td>
+        </tr>`;
+    });
+});
+
+/* ADD PLAYER */
+window.addPlayer = async function(){
+    if(!isAdmin) return alert("Admin only");
+
+    const name = document.getElementById("playerName").value;
+    if(!name) return;
+
+    await addDoc(playersRef,{
+        name,
+        goals:0,
+        assists:0,
+        wins:0,
+        draws:0,
+        losses:0
+    });
+
+    document.getElementById("playerName").value="";
+};
+
+/* CHANGE STATS */
+window.change = async function(id, field, value){
+    if(!isAdmin) return alert("Admin only");
+
+    const ref = doc(db,"players",id);
+    const snap = await getDoc(ref);
+    let data = snap.data();
+
+    data[field] = (data[field]||0) + value;
+
+    await updateDoc(ref,data);
+};
 
 </script>
 
