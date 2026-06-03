@@ -1,31 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Leaderboard</title>
+<title>Football Leaderboard</title>
 
 <style>
-body{font-family:Arial;background:#111;color:white;text-align:center;}
-table{margin:auto;width:90%;background:white;color:black;}
-td,th{padding:8px;border:1px solid #ddd;}
-button{margin:2px;}
-#admin{display:none;margin:10px;}
+body{
+    font-family: Arial;
+    background:#141E30;
+    color:white;
+    text-align:center;
+}
+
+table{
+    width:95%;
+    margin:auto;
+    background:white;
+    color:black;
+    border-collapse:collapse;
+}
+
+th,td{
+    padding:10px;
+    border:1px solid #ddd;
+}
+
+button{
+    padding:5px;
+    margin:2px;
+    cursor:pointer;
+}
+
+#adminPanel{display:none;margin:10px;}
+#history{margin-top:20px;}
 </style>
 </head>
 
 <body>
 
-<h1>Football Leaderboard</h1>
+<h1>AFC League Official Football Leaderboard</h1>
+
+<p id="status">Viewer mode</p>
 
 <input id="pass" type="password" placeholder="Admin password">
 <button onclick="login()">Login</button>
 
-<p id="status">Viewer mode</p>
+<br><br>
 
-<div id="admin">
-<input id="name" placeholder="Player name">
-<button onclick="add()">Add Player</button>
-<button onclick="undo()">Undo</button>
+<div id="adminPanel">
+    <input id="name" placeholder="Player name">
+    <button onclick="addPlayer()">Add Player</button>
+    <button onclick="undo()">Undo</button>
 </div>
 
 <br>
@@ -42,88 +67,125 @@ button{margin:2px;}
 <th>Total</th>
 </tr>
 </thead>
-<tbody id="t"></tbody>
+
+<tbody id="tbody"></tbody>
 </table>
 
 <h3>History</h3>
-<div id="h"></div>
+<div id="history"></div>
 
 <script>
-const ADMIN_PASS="1234";
-let admin=false;
+const ADMIN_PASS = "Theod34567";
 
-let players=JSON.parse(localStorage.getItem("p")||"[]");
-let history=JSON.parse(localStorage.getItem("h")||"[]");
-let backup=null;
+let isAdmin = false;
 
+let players = JSON.parse(localStorage.getItem("players") || "[]");
+let history = JSON.parse(localStorage.getItem("history") || "[]");
+let backup = null;
+
+/* SAVE */
 function save(){
-localStorage.setItem("p",JSON.stringify(players));
-localStorage.setItem("h",JSON.stringify(history));
+    localStorage.setItem("players", JSON.stringify(players));
+    localStorage.setItem("history", JSON.stringify(history));
 }
 
+/* LOGIN */
 function login(){
-if(document.getElementById("pass").value===ADMIN_PASS){
-admin=true;
-document.getElementById("status").innerText="ADMIN MODE";
-document.getElementById("admin").style.display="block";
-}
-render();
-}
+    const pass = document.getElementById("pass").value;
 
-function add(){
-if(!admin)return;
-
-let n=document.getElementById("name").value;
-if(!n)return;
-
-players.push({name:n,g:0,a:0,w:0,d:0,l:0});
-history.push("Added "+n);
-save();render();
+    if(pass === ADMIN_PASS){
+        isAdmin = true;
+        document.getElementById("status").innerText = "ADMIN MODE";
+        document.getElementById("adminPanel").style.display = "block";
+    } else {
+        alert("Wrong password");
+    }
+    render();
 }
 
-function change(i,k,v){
-if(!admin)return;
+/* ADD PLAYER */
+function addPlayer(){
+    if(!isAdmin) return;
 
-backup=JSON.parse(JSON.stringify(players));
+    const name = document.getElementById("name").value;
+    if(!name) return;
 
-players[i][k]+=v;
-if(players[i][k]<0)players[i][k]=0;
+    players.push({
+        name,
+        goals:0,
+        assists:0,
+        wins:0,
+        draws:0,
+        losses:0
+    });
 
-history.push(players[i].name+" "+k+" "+v);
-save();render();
+    history.push("Added " + name);
+    save();
+    render();
 }
 
+/* CHANGE STATS */
+function change(i,field,val){
+    if(!isAdmin) return;
+
+    backup = JSON.parse(JSON.stringify(players));
+
+    players[i][field] += val;
+    if(players[i][field] < 0) players[i][field] = 0;
+
+    history.push(players[i].name + " " + field + " " + val);
+
+    save();
+    render();
+}
+
+/* UNDO */
 function undo(){
-if(!admin||!backup)return;
+    if(!isAdmin || !backup) return;
 
-players=backup;
-history.push("UNDO");
-save();render();
+    players = backup;
+    history.push("UNDO");
+    save();
+    render();
 }
 
+/* TOTAL */
 function total(p){
-return p.g*1.5+p.a+p.w*3-p.l;
+    return p.goals*1.5 + p.assists + p.wins*3 - p.losses;
 }
 
+/* RENDER */
 function render(){
-let t=document.getElementById("t");
-t.innerHTML="";
+    const tbody = document.getElementById("tbody");
+    tbody.innerHTML = "";
 
-players.forEach((p,i)=>{
-t.innerHTML+=`
-<tr>
-<td>${p.name}</td>
-<td>${p.g}<button onclick="change(${i},'g',1)">+</button></td>
-<td>${p.a}<button onclick="change(${i},'a',1)">+</button></td>
-<td>${p.w}<button onclick="change(${i},'w',1)">+</button></td>
-<td>${p.d}</td>
-<td>${p.l}<button onclick="change(${i},'l',1)">+</button></td>
-<td>${total(p).toFixed(1)}</td>
-</tr>`;
-});
+    players.forEach((p,i)=>{
+        tbody.innerHTML += `
+        <tr>
+            <td>${p.name}</td>
 
-document.getElementById("h").innerHTML=
-history.slice(-10).reverse().map(x=>"<div>"+x+"</div>").join("");
+            <td>${p.goals}
+            <button onclick="change(${i},'goals',1)">+</button></td>
+
+            <td>${p.assists}
+            <button onclick="change(${i},'assists',1)">+</button></td>
+
+            <td>${p.wins}
+            <button onclick="change(${i},'wins',1)">+</button></td>
+
+            <td>${p.draws}
+            <button onclick="change(${i},'draws',1)">+</button></td>
+
+            <td>${p.losses}
+            <button onclick="change(${i},'losses',1)">+</button></td>
+
+            <td>${total(p).toFixed(1)}</td>
+        </tr>
+        `;
+    });
+
+    document.getElementById("history").innerHTML =
+        history.slice(-10).reverse().map(h => `<div>${h}</div>`).join("");
 }
 
 render();
